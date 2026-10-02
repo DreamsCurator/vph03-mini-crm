@@ -1,11 +1,23 @@
-# Автоматический отчёт в Google Таблице
+# Мини-CRM на вайбкодинге
 
-Модуль для работы с Google Таблицей через сервисный аккаунт и окно, которое записывает случайный отчёт на новый лист.
+Локальная CRM для личного бизнеса: клиенты, сделки и задачи. Бэкенд на FastAPI и SQLite, окно на Tkinter, выгрузка отчётов в Google Таблицы через личный OAuth-аккаунт.
 
-## Что внутри
+## Структура
 
-- `google_sheet.py` — класс `GoogleSheet` с операциями чтения, добавления, изменения и очистки ячеек. Его можно импортировать в другое приложение.
-- `report_generator.py` — окно на tkinter: создаёт новый лист, записывает случайные строки и оформляет заголовок, шапку, цвета доходов и расходов, объединённые ячейки и сумму.
+```text
+backend/         FastAPI, модели и CRUD на sqlite3
+ui/              Окно Tkinter, ходит в API по HTTP
+integrations/    Google Drive и Google Sheets
+docker-compose.yml
+```
+
+## Что умеет
+
+- Клиенты: создание, правка, архив, удаление, поиск без учёта регистра
+- Сделки и заказы: со статусом, с клиентом или без него
+- Задачи и напоминания: связь с клиентом и/или сделкой, отметка «выполнено»
+- Выгрузка любой видимой таблицы в новую Google Таблицу с оформлением
+- Запуск API в Docker с автоперезапуском при правках кода (Watchdog)
 
 ## Подготовка
 
@@ -17,43 +29,79 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-Рядом с кодом положите JSON-ключ сервисного аккаунта и назовите файл `zerocoderlessons-480509-df826ffcdec9.json`. Этот файл в репозиторий не входит. Таблицу откройте на редактирование для почты сервисного аккаунта из этого ключа.
+Секреты в репозиторий не входят. Положите в `integrations/`:
 
-В файле `.env` укажите таблицу:
+- JSON сервисного аккаунта
+- JSON OAuth-клиента (`client_secret*.json`)
+
+В корневом `.env` при необходимости:
 
 ```text
-SPREADSHEET_ID=часть_ссылки_между_/d/_и_/edit
+FOLDER_ID=id_рабочей_папки_на_диске
+SPREADSHEET_ID=id_таблицы
 SHEET_NAME=
+CRM_DB_PATH=
 ```
 
-`SHEET_NAME` можно оставить пустым: тогда `google_sheet.py` читает первый лист.
+Папку на Google Диске откройте на редактирование для сервисного аккаунта.
 
-## Запуск
+## Запуск API
 
-Проверка чтения:
+### Docker Compose
 
 ```powershell
-python google_sheet.py
+docker compose up --build -d
 ```
 
-Генератор отчёта:
+API: http://127.0.0.1:8000  
+Документация: http://127.0.0.1:8000/docs
+
+Папка `backend/` смонтирована в контейнер. Watchdog сам перезапускает uvicorn при изменении `.py` файлов.
+
+Остановка:
 
 ```powershell
-python report_generator.py
+docker compose down
 ```
 
-## Использование модуля
+### Локально без Docker
 
-```python
-from google_sheet import GoogleSheet
-
-sheet = GoogleSheet(
-    spreadsheet_id="id_из_ссылки",
-    credentials_path="zerocoderlessons-480509-df826ffcdec9.json",
-    sheet_name="Лист1",
-)
-rows = sheet.read()
-sheet.create(["Новая", "строка"])
-sheet.update("A2:B2", [["Значение", 10]])
-sheet.delete("A2:B2")
+```powershell
+python backend\crm.py
 ```
+
+## Запуск окна CRM
+
+Сервер должен уже работать.
+
+```powershell
+python ui\crm_app.py
+```
+
+Внизу окна — **Настройки Google**: пути к JSON и id папки. Значения сохраняются в `ui/google_settings.txt`. Рядом с полем id папки есть кнопка **Вставить**.
+
+На каждой вкладке с таблицей есть **Выгрузить отчёт**: создаётся Google Таблица через Drive API, данные записываются через Sheets API. При первой выгрузке откроется вход в личный Google-аккаунт.
+
+## Google-интеграции отдельно
+
+```powershell
+python integrations\google_drive.py
+python integrations\create_file.py
+python integrations\report_generator.py
+```
+
+## API кратко
+
+| Метод | Путь | Назначение |
+|---|---|---|
+| GET | `/search?q=` | Поиск по клиентам и сделкам |
+| POST/GET/PATCH/DELETE | `/clients`, `/clients/{id}` | Клиенты |
+| POST | `/clients/{id}/archive`, `/restore` | Архив |
+| POST/GET/PATCH/DELETE | `/deals`, `/deals/{id}` | Сделки |
+| PUT | `/deals/{id}/client` | Прикрепить или отвязать клиента |
+| POST/GET/PATCH/DELETE | `/tasks`, `/tasks/{id}` | Задачи |
+| POST | `/tasks/{id}/complete`, `/reopen` | Статус задачи |
+
+## Зависимости
+
+См. `requirements.txt`: FastAPI, Uvicorn, Watchdog, Google API-клиенты, python-dotenv. Tkinter входит в стандартную поставку Python.

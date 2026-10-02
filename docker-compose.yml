@@ -1,0 +1,15 @@
+name: crm
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    init: true
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
